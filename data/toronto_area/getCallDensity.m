@@ -252,10 +252,13 @@ for i = 1:n
     fprintf('    → %s\n', nameKey);  % optional: echo resolved name
     
     % --- calls ---
-    if ~isKey(callMap, nameKey)
-        error('Neighbourhood "%s" not found in call table (check naming consistency).', nameKey);
+    if isKey(callMap, nameKey)
+        C = callMap(nameKey);
+    else
+        fprintf('    (No call data for "%s" → using C = 0)\n', nameKey);
+        C = 0;
     end
-    C = callMap(nameKey);
+    
     callScore = callScore + f * C;
     
     % --- area (if available) ---
@@ -283,5 +286,5 @@ if ~isempty(missingArea)
 end
 
 fprintf('====================================\n');
-fprintf('Water/white regions: don''t enter them; that part of the square\n');
-fprintf('implicitly contributes 0 calls and 0 density.\n');
+%fprintf('Water/white regions: don''t enter them; that part of the square\n');
+%fprintf('implicitly contributes 0 calls and 0 density.\n');
