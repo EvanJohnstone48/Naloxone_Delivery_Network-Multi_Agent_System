@@ -16,11 +16,14 @@ callVals  = callTable.("NumberOfCalls");
 idToCallName = containers.Map(callNums, callNames);
 callMap      = containers.Map(callNames, callVals);
 
-%% ---------------- Load area data -------------------------
-csvPathAreas = fullfile(scriptFolder,'toronto_areas.csv');
+%% ---------------- Load area data (UPDATED) -------------------------
+% Use the new fixed_neighborhood_areas.csv and look up by NAME
+csvPathAreas = fullfile(scriptFolder, "toronto_neighbourhood_areas.csv");
 areaTable    = readtable(csvPathAreas);
 
-areaKeys = lower(strtrim(areaTable.name));
+% Assuming columns: neighbourhood_number, neighbourhood_name, area_km2
+% We ONLY care about the name + area; numbers in this file are not trusted.
+areaKeys = lower(strtrim(areaTable.neighbourhood_name));
 areaVals = areaTable.area_km2;
 
 areaMap = containers.Map(areaKeys, areaVals);
@@ -28,10 +31,10 @@ areaMap = containers.Map(areaKeys, areaVals);
 %% ---------------- User input ----------------------------
 n = input('How many neighbourhoods overlap this square? ');
 
-callScore = 0;
-densScore = 0;
+callScore   = 0;
+densScore   = 0;
 missingArea = {};
-totalPct = 0;
+totalPct    = 0;
 
 for i = 1:n
     fprintf('\nNeighbourhood %d:\n', i);
@@ -41,7 +44,7 @@ for i = 1:n
 
     f = pct / 100;
 
-    %% ---- ID lookup WITHOUT isKey ----
+    %% ---- ID → name (from call table) ----
     try
         nameKey = idToCallName(id);
         fprintf('    → %s\n', nameKey);
@@ -50,7 +53,7 @@ for i = 1:n
         nameKey = "";
     end
 
-    %% ---- Calls lookup WITHOUT isKey ----
+    %% ---- Calls lookup by name ----
     if nameKey == ""
         C = 0;
     else
@@ -63,7 +66,7 @@ for i = 1:n
         end
     end
 
-    %% ---- Area lookup WITHOUT isKey ----
+    %% ---- Area lookup by *name* only (numbers in area file ignored) ----
     if nameKey ~= ""
         try
             A = areaMap(nameKey);
