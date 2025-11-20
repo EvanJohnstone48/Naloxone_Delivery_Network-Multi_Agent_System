@@ -77,13 +77,6 @@ for i = 1:n
     end
 end
 
-%% ---------------- Validate percentages sum to 100 --------------------
-if abs(totalPct - 100) > 1e-6
-    fprintf('\nERROR: Total coverage = %.1f%% (must add up to 100%%).\n', totalPct);
-    fprintf('Please restart and enter correct percentages.\n\n');
-    return;
-end
-
 %% ---------------- Output -------------------------------------------
 fprintf('\n====================================\n');
 
