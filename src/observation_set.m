@@ -2,53 +2,45 @@ function obset_data = observation_set(p, x, y, d, ro)
 %{ 
 Let "n" be the number of agents in the observation set.
 Let "m' be the length of the arena
-Let "w" be the number of data points in the observation set
-
 --- Inputs ---
 p: n by 2 array holding position data for agents in obs set
-   e.g., p(i,2) is the y coordinate for agent-i
-
 x, y, d: m by m meshgrids holding arena data 
-
 ro: radius of observation (scalar) used by all agents
-
 --- Outputs ---
-obset_data: w by 2 array holding all weighted data in observation set.  
-   e.g., z(:,2) are all of the y data in the obs set weighted by density
-
---- Hints ---
-1:  Make sure that you are not accidentally including duplicate xy
-points in your output.  Depending on how your design your code, this is 
-easy to miss when the agents' area of observation overlap.  Consider 
-using the unique() function to resolve. 
-
-2: Running x.*d will weight the x meshgrid by the density meshgrid 
+obset_data: w by 3 array.
+    Column 1: x coordinate weighted by density (x * d)
+    Column 2: y coordinate weighted by density (y * d)
+    Column 3: density (d)
+    
+    *IMPORTANT*: We include Column 3 (d) so you can calculate the 
+    total mass (sum(d)) required for centroid normalization.
 %}
 
-n = size(p);    % number of agents in observation set
-
-% weighting arena data by density
-xwt = x.*d;
-ywt = y.*d;
-
-obset_data = nan(length(x)^2,2);     % holds all data contained in obs set
-
-j = 1;
-for i = 1:n
-    % distance to agent
-    d2a = sqrt((x-p(i,1)).^2 + (y-p(i,2)).^2);
+    n = size(p, 1);    % number of agents in observation set
     
-    % (d2a<=ro) tells us which points are contained in the agent's radius
-    % of obervation. This array is used to index the weighted arena arrays.
-    agent_data = [xwt(d2a<=ro) ywt(d2a<=ro)];
+    % 1. Create a Boolean Mask for the whole grid
+    %    Start with all false (no points observed)
+    observed_mask = false(size(x));
     
-    % saving agent data to observation set
-    k = length(agent_data)-1;
-    obset_data(j:j+k,:) = agent_data;
-    j=j+k+1;
-end
-
-% unique is required to remove duplicate entries
-obset_data = unique(obset_data(1:j-1,:),'rows');
+    % 2. Update mask for each agent
+    for i = 1:n
+        % Calculate distance from agent i to ALL grid points
+        dist_sq = (x - p(i,1)).^2 + (y - p(i,2)).^2;
+        
+        % Update the mask: points already seen OR points seen by this agent
+        observed_mask = observed_mask | (dist_sq <= ro^2);
+    end
+    
+    % 3. Extract data using the combined mask
+    %    This automatically handles duplicates/overlaps and is much faster
+    %    than unique().
+    
+    x_vals = x(observed_mask);
+    y_vals = y(observed_mask);
+    d_vals = d(observed_mask);
+    
+    % 4. Construct Output
+    %    Returns [x*rho, y*rho, rho]
+    obset_data = [x_vals .* d_vals, y_vals .* d_vals, d_vals];
 
 end
