@@ -1,0 +1,72 @@
+function [P_new, centroids, regionMap, maxMove, J] = lloyd_step(P, X, Y, D, alpha)
+% one lloyd iteration
+%
+% Inputs: P nAgents x 2 matrix of current drone positions [x, y] and the
+% X,Y,D matrices
+% alpha is the step size fraction, for how far to move towards centroid
+%
+% Outputs: P_new: nAgents x 2 matrix of updated positions
+%   centroids: nAgents x 2 matrix of density weighted centroids
+%   regionMap for voronoi region N x N matrix, integer labels 1..nAgents indicating which drone "owns" each grid cell
+%   maxMove, maximum movement any drone made this step
+%   J: Lloyd cost for this iteration
+%     
+
+    [nRows, nCols] = size(D);
+    nAgents = size(P, 1);
+
+    % Flatten grid for easier operations
+    xVec = X(:);          % N^2 x 1
+    yVec = Y(:);          % N^2 x 1
+    wVec = D(:);          % densities
+
+    nCells = numel(wVec); %number of grid locations
+    owner = zeros(nCells, 1);  % vector for each gridlocation, to indicate which agent owns it
+    J = 0; % total cost for this lloyd iteration
+
+    % 1. Assign each grid cell to nearest drone to give it its voronoi
+    % loop the region :)
+    for k = 1:nCells
+        dx = P(:,1) - xVec(k); %dx and dy are vectors for the distances for every drone position P(:,1)
+        dy = P(:,2) - yVec(k);
+        distSq = dx.^2 + dy.^2; %Still a vector
+        [minDistSq, idxMin] = min(distSq); %idxmin is the agent number
+        owner(k) = idxMin; %set the cells owner to the drones row
+
+        % Accumulate Lloyd cost contribution from this cell
+        % J = sum_k w_k * min_i ||q_k - p_i||^2
+        J = J + wVec(k) * minDistSq;
+    end
+
+    % 2. For each drone, compute density weighted centroid of its cells
+    centroids = zeros(nAgents, 2);
+    for j = 1:nAgents
+        mask = (owner == j); % mask is all points in that veronoi region
+        wj = wVec(mask); %all the densities of that region
+
+        if isempty(wj) || sum(wj) == 0
+            % If no density assigned, keep centroid at current position
+            centroids(j, :) = P(j, :);
+        else
+            xj = xVec(mask); %x and y vectors for cells in that veronoi region
+            yj = yVec(mask);
+
+            % Weighted averages
+            wSum = sum(wj);
+            cx = sum(xj .* wj) / wSum;
+            cy = sum(yj .* wj) / wSum;
+
+            centroids(j, :) = [cx, cy]; %The row is the agent j we are on, sets the centroids x,y to the centers of mass in x and y
+        end
+    end
+
+    % 3. Move each drone a fraction alpha towards its centroid
+    P_new = P + alpha * (centroids - P);
+
+    % 4. Compute maximum movement for convergence check
+    moves = sqrt(sum((P_new - P).^2, 2)); %Max distance between any row in P, Pnew
+    maxMove = max(moves);
+
+    % 5. Reshape owner vector back to grid for plotting
+    regionMap = reshape(owner, [nRows, nCols]);
+end
