@@ -80,21 +80,43 @@ switch initChoice
         P(:, 2) = rand(nAgents, 1);  % y in [0,1]
         fprintf('Initialised drone positions randomly.\n');
     case 2  % Click
-        figure('Name','Click initial positions','NumberTitle','off', 'DefaultFigureWindowStyle', 'normal'); % Creates the figure window with name
-        imagesc(xv, yv, D); %Display the matrix D as a coloured image, data matrix appears as rectangular grid of coloured pixels
-        axis xy equal tight; %formatting
-        colorbar; %adds the legend
-        title('Click initial drone positions');
+        figure('Name','Click initial positions','NumberTitle','off', 'DefaultFigureWindowStyle', 'normal');
+        imagesc(xv, yv, D); 
+        axis xy equal tight;
+        colorbar;
+        title(sprintf('Click %d initial drone positions', nAgents)); % Update title dynamically
         xlabel('x');
         ylabel('y');
         hold on;
+        
         fprintf('Please click %d points on the figure for initial positions.\n', nAgents);
-        [xClick, yClick] = ginput(nAgents); %returns columns vectors for each click in x and y
+        
+        % --- CHANGED: Use a loop to plot points as you click ---
+        xClick = zeros(nAgents, 1); % Pre-allocate arrays
+        yClick = zeros(nAgents, 1);
+        
+        for i = 1:nAgents
+            % Get exactly 1 click
+            [xi, yi] = ginput(1); 
+            
+            % Store the coordinate
+            xClick(i) = xi;
+            yClick(i) = yi;
+            
+            % Plot a red filled dot immediately
+            plot(xi, yi, 'ro', 'MarkerSize', 10, 'MarkerFaceColor', 'r');
+            
+            % Force MATLAB to draw it NOW (otherwise it might wait until the loop ends)
+            drawnow; 
+        end
+        % -------------------------------------------------------
+        
         hold off;
+        pause(0.5); % Optional: Short pause so you can see your final clicks
         close;
-
-        P(:, 1) = xClick(:); %Set all the column 1 x positions to x click
-        P(:, 2) = yClick(:); %same for y
+        
+        P(:, 1) = xClick(:);
+        P(:, 2) = yClick(:);
         fprintf('Initialised drone positions from user clicks.\n');
 end
 
