@@ -47,6 +47,12 @@ function d = static_density_map(x, y)
 
         % Ensure it is numeric and nonnegative
         baseD = double(baseD);
+
+        % ---------------- FIX STARTS HERE ----------------
+        % 1. Flip Up-Down so CSV Top matches Cartesian Top (y=1)
+        baseD = flipud(baseD); 
+        % -------------------------------------------------
+        
         %Finds every negative element and sets it to 0
         baseD(baseD < 0) = 0;
 

@@ -115,6 +115,19 @@ f2 = figure(2);        % cost plot figure
 clf(f2);
 axCost = axes('Parent', f2);   % axes for J vs iteration, added it here so it isnt constantly updating
 
+% ---------------- MODIFIED SECTION 1: LOAD IMAGE ----------------
+% Added try/catch to prevent crash if file is missing
+% Added flipud because 'axis xy' puts (0,0) at bottom, but images put (0,0) at top
+try
+    backgroundMap = imread('../../data/Density_Map_Images/cropped_neighbourhood_map.jpg');
+    backgroundMap = flipud(backgroundMap); 
+    fprintf('Background map loaded successfully.\n');
+catch
+    warning('Background map not found. Proceeding with white background.');
+    backgroundMap = [];
+end
+% ----------------------------------------------------------------
+
 %% Main Lloyd loop
 for iter = 1:maxIter
     % One Lloyd step
@@ -134,13 +147,31 @@ for iter = 1:maxIter
 
     % Left: density heatmap
     subplot(1, 2, 1); %Divides into 2 subplots, makes 1st subplot active
-    imagesc(xv, yv, D);
-    axis xy equal tight; %formatting
-    colorbar; %Adds the colourbar
+
+    % ---------------- MODIFIED SECTION 2: PLOT LAYERS ----------------
+    % 1. Draw the Background Map first (Bottom Layer)
+    if ~isempty(backgroundMap)
+        image([0 1], [0 1], backgroundMap); 
+        hold on;
+    end
+    
+    % 2. Draw the Density Map ON TOP (Middle Layer)
+    hDensity = imagesc(xv, yv, D);
+    
+    % 3. Set Transparency (Only if we have a background map)
+    if ~isempty(backgroundMap)
+        set(hDensity, 'AlphaData', 0.6); % 0.6 = 60% opaque
+    end
+    
+    % Formatting
+    axis xy equal tight;
+    colorbar;
     title(sprintf('Density map with drones (iter %d)', iter));
     xlabel('x');
     ylabel('y');
     hold on;
+    % -----------------------------------------------------------------
+
     %Plot the drones stored in P_new on top of imagem 80 is marker size,
     %'w' is marker face coloour, 'MarkerEdgeColor','k' is border colour
     scatter(P_new(:,1), P_new(:,2), 80, 'w', 'filled', 'MarkerEdgeColor','k');
