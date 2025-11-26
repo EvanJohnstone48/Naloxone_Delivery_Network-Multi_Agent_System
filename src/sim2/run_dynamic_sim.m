@@ -115,6 +115,19 @@ if showVoronoi
     axVor = axes('Parent', f2);
 end
 
+% ---------------- MODIFIED SECTION 1: LOAD IMAGE ----------------
+% Added try/catch to prevent crash if file is missing
+% Added flipud because 'axis xy' puts (0,0) at bottom, but images put (0,0) at top
+try
+    backgroundMap = imread('../../data/Density_Map_Images/cropped_neighbourhood_map.jpg');
+    backgroundMap = flipud(backgroundMap); 
+    fprintf('Background map loaded successfully.\n');
+catch
+    warning('Background map not found. Proceeding with white background.');
+    backgroundMap = [];
+end
+% ----------------------------------------------------------------
+
 %% ---- Main simulation loop ----
 for step = 1:nSteps
     simTime_hr = simTime_hr + dtSim_hr;
@@ -330,13 +343,37 @@ for step = 1:nSteps
     %% 7) Visualisation ------------------------------------------------
     set(0, 'CurrentFigure', f1);
     clf(f1);
-
-    imagesc(xv, yv, D);
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % <--- CHANGED START: Layered Plotting with Transparency --->
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    
+    % 1. Draw the Background Map first (Bottom Layer)
+    if ~isempty(backgroundMap)
+        % 'image' draws from top-left by default, but we flipped data.
+        % This maps the image to the [0,1] x [0,1] domain.
+        image([0 1], [0 1], backgroundMap); 
+        hold on;
+    end
+    
+    % 2. Draw the Density Map ON TOP (Middle Layer)
+    hDensity = imagesc(xv, yv, D);
+    
+    % 3. Set Transparency (Only if we have a background map)
+    if ~isempty(backgroundMap)
+        set(hDensity, 'AlphaData', 0.6); % 0.6 = 60% opaque
+    end
+    
+    % Formatting
     axis xy equal tight;
     colorbar;
-    hold on;
     xlabel('x');
     ylabel('y');
+    hold on;
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % <--- CHANGED END --->
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     % Plot call positions
     activeCallPos = [];
