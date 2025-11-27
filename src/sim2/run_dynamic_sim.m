@@ -70,7 +70,7 @@ dtSim_min      = 0.1;         % time step in minutes (0.5 min = 30 s sim time)
 dtSim_hr       = dtSim_min / 60;
 nSteps         = floor(simDuration_hr / dtSim_hr);
 
-timeAccel = 100;                % sim runs (n)x faster than real time
+timeAccel = 1000;                % sim runs (n)x faster than real time
 pauseTime = dtSim_hr * 3600 / timeAccel;   % seconds to pause per step
 
 %% ---- Voronoi visualization toggle ----

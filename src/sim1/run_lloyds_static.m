@@ -112,7 +112,7 @@ switch initChoice
         % -------------------------------------------------------
         
         hold off;
-        pause(0.5); % Optional: Short pause so you can see your final clicks
+        pause(0.2); % Optional: Short pause so you can see your final clicks
         close;
         
         P(:, 1) = xClick(:);
@@ -123,7 +123,7 @@ end
 %% Lloyd iteration parameters
 maxIter = 100;         % maximum number of iterations
 tol     = 1e-3;       % stop if max movement smaller than this
-pauseTime = 0.1;      % pause between frames for visualization
+pauseTime = 0.01;      % pause between frames for visualization
 J_history = nan(maxIter, 1);  % to store Lloyd cost per iteration, for our graph
 
 fprintf('\nStarting Lloyd iterations...\n');
