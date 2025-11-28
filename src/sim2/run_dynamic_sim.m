@@ -378,39 +378,39 @@ for step = 1:nSteps
         end
     end
     %% 6) Lloyd coverage update for available drones -------------------
-    % Only do coverage if at least one drone is off-line (on call or returning)
-    busyMask = (state == STATE_TO_CALL) | (state == STATE_AT_CALL) | (state == STATE_RETURNING);
-    if any(busyMask)
-        % Drones that can cover: either at base or already in COVER, with enough battery
-        canCoverMask = (state == STATE_IDLE_AT_BASE | state == STATE_COVER) ...
-                        & (battery >= batteryThresholdActive);
-        coverageIdx = find(canCoverMask);
+% Coverage only happens while at least one drone is actively on a call
+onCallMask = (state == STATE_TO_CALL) | (state == STATE_AT_CALL);
 
-        if ~isempty(coverageIdx)
-            P_cov = pos(coverageIdx,:);
-            centroids_cov = compute_coverage_centroids(P_cov, X, Y, D);
+if any(onCallMask)
+    % Drones that can cover: either at base or already in COVER, with enough battery
+    canCoverMask = (state == STATE_IDLE_AT_BASE | state == STATE_COVER) ...
+                    & (battery >= batteryThresholdActive);
+    coverageIdx = find(canCoverMask);
 
-            % Update coverage targets
-            coverageTarget(coverageIdx,:) = centroids_cov;
+    if ~isempty(coverageIdx)
+        P_cov         = pos(coverageIdx,:);
+        centroids_cov = compute_coverage_centroids(P_cov, X, Y, D);
 
-            % Any at-base drones that started covering now change state
-            for k = 1:numel(coverageIdx)
-                idx = coverageIdx(k);
-                if state(idx) == STATE_IDLE_AT_BASE
-                    state(idx) = STATE_COVER;
-                end
-            end
-        end
-    else
-        % No busy drones: drift all drones back to base
-        for i = 1:nAgents
-            if state(i) ~= STATE_IDLE_AT_BASE
-                state(i) = STATE_RETURNING;
-                coverageTarget(i,:) = basePos(i,:);
+        % Update coverage targets
+        coverageTarget(coverageIdx,:) = centroids_cov;
+
+        % Any at-base drones that started covering now change state
+        for k = 1:numel(coverageIdx)
+            idx = coverageIdx(k);
+            if state(idx) == STATE_IDLE_AT_BASE
+                state(idx) = STATE_COVER;
             end
         end
     end
-
+else
+    % No active calls: everyone just goes/stays at base, no new coverage
+    for i = 1:nAgents
+        if state(i) ~= STATE_IDLE_AT_BASE
+            state(i)            = STATE_RETURNING;
+            coverageTarget(i,:) = basePos(i,:);
+        end
+    end
+end
     %% 7) Visualisation ------------------------------------------------
     set(0, 'CurrentFigure', f1);
     clf(f1);
