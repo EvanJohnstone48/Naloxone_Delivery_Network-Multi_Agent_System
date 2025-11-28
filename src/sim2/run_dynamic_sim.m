@@ -65,7 +65,7 @@ batteryThresholdActive = 50;   % must be >= 50% to be dispatched or cover
 reserveMarginPercent   = 5;    % extra percent above minimum needed to return
 
 % Simulation time and real-time scaling
-simDuration_hr = 2.0;         % total simulated hours
+simDuration_hr = 0.2;         % total simulated hours
 dtSim_min      = 0.1;         % time step in minutes (0.5 min = 30 s sim time)
 dtSim_hr       = dtSim_min / 60;
 nSteps         = floor(simDuration_hr / dtSim_hr);
@@ -497,4 +497,62 @@ for step = 1:nSteps
     pause(pauseTime);
 end
 
+% ---- Post-simulation performance summary ----
+nCallsTotal = numel(calls);
+
+if nCallsTotal == 0
+    fprintf('\nDynamic simulation finished.\n');
+    warning('No calls occurred in this run. No performance metrics to report.\n');
+else
+    % Extract vectors of start and arrival times (in hours)
+    arrivalTimes_hr = [calls.arrivalTime];
+    startTimes_hr   = [calls.startTime];
+
+    % A "served" call is one that has a finite arrival time
+    servedMask = ~isnan(arrivalTimes_hr);
+    nServed    = sum(servedMask);
+
+    if nServed == 0
+        fprintf('\nDynamic simulation finished.\n');
+        warning('No calls were served in this run. No response-time metrics to report.\n');
+    else
+        % Response time = arrival - start, converted to minutes
+        respTimesMin = (arrivalTimes_hr(servedMask) - startTimes_hr(servedMask)) * 60;
+
+        % Average response time
+        avgRespMin = mean(respTimesMin);
+
+        % 90th percentile response time (manual percentile to avoid toolbox issues)
+        respSorted = sort(respTimesMin);
+        idx90      = max(1, round(0.90 * numel(respSorted)));
+        p90RespMin = respSorted(idx90);
+
+        % Percentages of served calls under thresholds
+        pctUnder3 = 100 * sum(respTimesMin <= 3) / nServed;
+        pctUnder5 = 100 * sum(respTimesMin <= 5) / nServed;
+
+        % Print summary
+        fprintf('\n---- Dynamic Simulation Performance Summary ----\n');
+        fprintf('Fleet size (number of drones)   : %d\n', nAgents);
+        fprintf('Total calls generated           : %d\n', nCallsTotal);
+        fprintf('Calls served (reached by drone) : %d (%.1f%%%% of calls)\n', ...
+                nServed, 100 * nServed / nCallsTotal);
+        fprintf('Average response time           : %.2f min\n', avgRespMin);
+        fprintf('90th percentile response time   : %.2f min\n', p90RespMin);
+        fprintf('%%%% of served calls <= 3 min    : %.1f%%%%\n', pctUnder3);
+        fprintf('%%%% of served calls <= 5 min    : %.1f%%%%\n', pctUnder5);
+        fprintf('-----------------------------------------------\n\n');
+
+        % Optional: store metrics in workspace struct for later tables/plots
+        simMetrics = struct();
+        simMetrics.fleetSize          = nAgents;
+        simMetrics.totalCalls         = nCallsTotal;
+        simMetrics.callsServed        = nServed;
+        simMetrics.avgRespMin         = avgRespMin;
+        simMetrics.p90RespMin         = p90RespMin;
+        simMetrics.pctUnder3Min       = pctUnder3;
+        simMetrics.pctUnder5Min       = pctUnder5;
+        assignin('base', 'simMetrics', simMetrics);
+    end
+end
 fprintf('Dynamic simulation finished.\n');
