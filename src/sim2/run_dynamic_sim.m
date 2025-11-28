@@ -54,23 +54,27 @@ domainSize_km = 16;          % 8 cells * 2 km each
 cellSize_km   = domainSize_km / N;   % 0.16 km per 100x100 cell
 
 droneSpeed_kmh = 70;         % real drone speed (tweak as needed)
-callRatePerHour = 20;         % expected calls per hour (lambda)
+callRatePerHour = 13.2;         % expected calls per hour (lambda)
 serviceTime_min = 5;         % time spent at call location
 serviceTime_hr  = serviceTime_min / 60;
 
 % Battery mode
-drainPercentPerHour   = 100;   % 100% per hour => 1hr continuous flight from full to empty
+drainPercentPerHour   = 110;   % 100% per hour => 1hr continuous flight from full to empty
 chargePercentPerHour  = 150;   % >100% means full charge in <1h
 batteryThresholdActive = 50;   % must be >= 50% to be dispatched or cover
 reserveMarginPercent   = 5;    % extra percent above minimum needed to return
 
 % Simulation time and real-time scaling
-simDuration_hr = 0.2;         % total simulated hours
+simDuration_hr = 2;         % total simulated hours
 dtSim_min      = 0.1;         % time step in minutes (0.5 min = 30 s sim time)
 dtSim_hr       = dtSim_min / 60;
 nSteps         = floor(simDuration_hr / dtSim_hr);
 
-timeAccel = 1000;                % sim runs (n)x faster than real time
+% Queue behaviour
+maxQueueWait_min = 5;                 % max time a call can wait in queue
+maxQueueWait_hr  = maxQueueWait_min / 60;
+
+timeAccel = 10000;                % sim runs (n)x faster than real time
 pauseTime = dtSim_hr * 3600 / timeAccel;   % seconds to pause per step
 
 %% ---- Voronoi visualization toggle ----
@@ -97,7 +101,11 @@ coverageTarget = basePos;            % current target for coverage / returning
 
 % Call storage, dynamic list
 calls = struct('pos', {}, 'startTime', {}, 'servedBy', {}, ...
-               'done', {}, 'dispatchTime', {}, 'arrivalTime', {});
+               'done', {}, 'dispatchTime', {}, 'arrivalTime', {}, ...
+               'inQueue', {}, 'unserved', {});
+
+% FIFO queue of waiting calls (stores indices into "calls")
+callQueue = [];
 
 % For stats: actual travel times (arrival - dispatch) in minutes
 arrivalTimesMin = [];
@@ -144,8 +152,10 @@ for step = 1:nSteps
         newCall.done         = false;
         newCall.dispatchTime = NaN;
         newCall.arrivalTime  = NaN;
+        newCall.inQueue      = false;
+        newCall.unserved     = false;
         calls(end+1) = newCall;  %#ok<SAGROW>
-
+        
         % Assign nearest available drone
         callIdx = numel(calls);
         availableMask = (state == STATE_IDLE_AT_BASE | state == STATE_COVER) ...
@@ -173,8 +183,11 @@ for step = 1:nSteps
                  'ETA ~ %.1f min\n'], ...
                 simTime_hr*60, cx, cy, droneIdx, eta_min);
         else
-            fprintf('t = %.1f min: New call at (%.3f, %.3f) but no drone available (call unserved).\n', ...
-                simTime_hr*60, cx, cy);
+            % No drone available now: put call into FIFO queue
+            calls(callIdx).inQueue = true;
+            callQueue(end+1) = callIdx;
+            fprintf('t = %.1f min: New call at (%.3f, %.3f) queued (all drones busy).\n', ...
+                    simTime_hr*60, cx, cy);
         end
     end
 
@@ -305,7 +318,65 @@ for step = 1:nSteps
                 end
         end
     end
+  %% 5b) Queue management: time-outs and assigning freed drones -------
+    % 5b-1) Time-out calls that have waited too long in the queue
+    if ~isempty(callQueue)
+        stillQueued = [];
+        for q = 1:numel(callQueue)
+            cIdx = callQueue(q);
 
+            if calls(cIdx).done || ~isnan(calls(cIdx).servedBy)
+                continue;
+            end
+
+            wait_hr = simTime_hr - calls(cIdx).startTime;
+            if wait_hr >= maxQueueWait_hr
+                calls(cIdx).unserved = true;
+                calls(cIdx).done     = true;
+                fprintf('t = %.1f min: Queued call %d waited > %.1f min and is marked unserved.\n', ...
+                        simTime_hr*60, cIdx, maxQueueWait_min);
+            else
+                stillQueued(end+1) = cIdx; %#ok<AGROW>
+            end
+        end
+        callQueue = stillQueued;
+    end
+
+    % 5b-2) Assign available drones to queued calls (FIFO)
+    if ~isempty(callQueue)
+        availMask = (state == STATE_IDLE_AT_BASE | state == STATE_COVER) ...
+                     & (battery >= batteryThresholdActive);
+
+        while any(availMask) && ~isempty(callQueue)
+            cIdx = callQueue(1);
+            callQueue(1) = [];
+
+            if calls(cIdx).done || ~isnan(calls(cIdx).servedBy)
+                continue;
+            end
+
+            idxAvail = find(availMask);
+            dists = vecnorm(pos(idxAvail,:) - calls(cIdx).pos, 2, 2);
+            [~, kMin] = min(dists);
+            droneIdx = idxAvail(kMin);
+
+            state(droneIdx)            = STATE_TO_CALL;
+            coverageTarget(droneIdx,:) = calls(cIdx).pos;
+            callAssigned(droneIdx)     = cIdx;
+            calls(cIdx).servedBy       = droneIdx;
+            calls(cIdx).dispatchTime   = simTime_hr;
+            calls(cIdx).inQueue        = false;
+
+            availMask(droneIdx) = false;
+
+            dist_norm = norm(pos(droneIdx,:) - calls(cIdx).pos);
+            dist_km   = dist_norm * domainSize_km;
+            eta_hr    = dist_km / droneSpeed_kmh;
+            eta_min   = eta_hr * 60;
+            fprintf(['t = %.1f min: Queued call %d now assigned to drone %d, ' ...
+                     'ETA ~ %.1f min\n'], simTime_hr*60, cIdx, droneIdx, eta_min);
+        end
+    end
     %% 6) Lloyd coverage update for available drones -------------------
     % Only do coverage if at least one drone is off-line (on call or returning)
     busyMask = (state == STATE_TO_CALL) | (state == STATE_AT_CALL) | (state == STATE_RETURNING);
